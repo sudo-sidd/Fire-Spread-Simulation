@@ -1,0 +1,19 @@
+[project]
+name = "terrianextract"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "earthengine-api>=1.5.20",
+    "folium>=0.20.0",
+    "geemap>=0.35.3",
+    "google-auth>=2.35.0",
+    "google-auth-oauthlib>=1.0.0",
+    "ipykernel>=6.29.5",
+    "jupyter>=1.1.1",
+    "pillow>=11.2.1",
+    "selenium>=4.33.0",
+    "templatrix>=0.1.1",
+    "webdriver-manager>=4.0.2",
+]
