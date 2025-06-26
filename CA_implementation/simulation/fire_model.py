@@ -1,5 +1,5 @@
 import random
-from utils.config import IGNITION_PROBABILITY, SPREAD_PROBABILITY
+from ..utils.config import IGNITION_PROBABILITY, SPREAD_PROBABILITY
 
 class FireModel:
     def __init__(self, width, height):
