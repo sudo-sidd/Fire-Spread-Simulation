@@ -550,6 +550,7 @@ class FireSimulationApp {
         document.getElementById('selectAreaBtn').addEventListener('click', () => this.selectCurrentArea());
         
         // Simulation controls
+        document.getElementById('randomIgniteBtn').addEventListener('click', () => this.startRandomFires());
         document.getElementById('playBtn').addEventListener('click', () => this.startSimulation());
         document.getElementById('pauseBtn').addEventListener('click', () => this.pauseSimulation());
         document.getElementById('stepBtn').addEventListener('click', () => this.stepSimulation());
@@ -1287,6 +1288,42 @@ class FireSimulationApp {
         console.log('2D Grid overlay created successfully!');
         console.log(`Grid contains ${gridSize}x${gridSize} = ${responseData.statistics.total_cells} cells`);
         console.log('Terrain distribution:', responseData.statistics.terrain_percentages);
+    }
+    
+    async startRandomFires() {
+        if (!this.currentSimulationId) {
+            this.showToast('Error', 'No simulation area selected. Please select an area first.', 'error');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/simulation/random-ignite', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    simulation_id: this.currentSimulationId,
+                    num_ignitions: 3, // Start 3 random fires
+                    ignition_probability: 0.02 // 2% chance per flammable cell as fallback
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                this.updateGridVisualization(data.visualization);
+                this.updateStatistics(data.statistics);
+                this.showToast('Random Fires Started', 
+                    `Successfully ignited ${data.ignited_count} fires in ${data.flammable_cells} flammable areas`, 
+                    'warning');
+                
+                // Enable simulation controls since fires are now active
+                this.updateSimulationButtons();
+            } else {
+                this.showToast('Failed to Start Fires', data.message, 'error');
+            }
+        } catch (error) {
+            this.showToast('Error', error.message, 'error');
+        }
     }
 }
 

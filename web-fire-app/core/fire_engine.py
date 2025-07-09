@@ -307,3 +307,88 @@ class FireSimulation:
                 row_states.append(self.get_cell_state(row, col))
             states.append(row_states)
         return states
+    
+    def random_ignite(self, num_ignitions: int = None, ignition_probability: float = 0.05) -> int:
+        """
+        Randomly ignite flammable cells across the grid
+        
+        Args:
+            num_ignitions: Number of fires to start. If None, uses probability-based ignition
+            ignition_probability: Probability for each flammable cell to ignite (if num_ignitions is None)
+            
+        Returns:
+            Number of cells actually ignited
+        """
+        flammable_cells = []
+        
+        # Find all flammable cells
+        for y in range(self.height):
+            for x in range(self.width):
+                cell = self.grid[y][x]
+                if cell.can_ignite():
+                    flammable_cells.append((y, x))
+        
+        if not flammable_cells:
+            return 0
+        
+        ignited_count = 0
+        
+        if num_ignitions is not None:
+            # Ignite a specific number of random cells
+            num_to_ignite = min(num_ignitions, len(flammable_cells))
+            selected_cells = random.sample(flammable_cells, num_to_ignite)
+            
+            for y, x in selected_cells:
+                if self.ignite_at(x, y):
+                    ignited_count += 1
+        else:
+            # Use probability-based ignition
+            for y, x in flammable_cells:
+                if random.random() < ignition_probability:
+                    if self.ignite_at(x, y):
+                        ignited_count += 1
+        
+        return ignited_count
+
+    def get_flammable_cell_count(self) -> int:
+        """Get the total number of flammable cells in the grid"""
+        count = 0
+        for y in range(self.height):
+            for x in range(self.width):
+                if self.grid[y][x].can_ignite():
+                    count += 1
+        return count
+
+    def is_active(self) -> bool:
+        """Check if simulation has active fires"""
+        return self.burning_cells > 0
+    
+    def get_cell_state(self, row: int, col: int) -> str:
+        """Get the fire state of a specific cell"""
+        if (0 <= row < self.grid_height and 0 <= col < self.grid_width):
+            cell = self.grid[row][col]
+            if cell.fire_state == 0:
+                return 'normal'
+            elif cell.fire_state == 1:
+                return 'burning'
+            elif cell.fire_state == 2:
+                return 'burned'
+            elif cell.fire_state == 3:
+                return 'smoldering'
+        return 'normal'
+    
+    def get_cell_terrain(self, row: int, col: int) -> str:
+        """Get the terrain type of a specific cell"""
+        if (0 <= row < self.grid_height and 0 <= col < self.grid_width):
+            return self.grid[row][col].terrain_type
+        return 'grass'
+    
+    def get_all_fire_states(self) -> List[List[str]]:
+        """Get fire states for all cells in the grid"""
+        states = []
+        for row in range(self.grid_height):
+            row_states = []
+            for col in range(self.grid_width):
+                row_states.append(self.get_cell_state(row, col))
+            states.append(row_states)
+        return states

@@ -140,6 +140,66 @@ def ignite_fire():
             'error': str(e)
         }), 500
 
+@simulation_bp.route('/random-ignite', methods=['POST'])
+def random_ignite():
+    """Start fires randomly across flammable areas"""
+    try:
+        data = request.get_json()
+        sim_id = data.get('simulation_id')
+        num_ignitions = data.get('num_ignitions')  # Optional: specific number of fires
+        ignition_probability = data.get('ignition_probability', 0.05)  # Default 5% chance per cell
+        
+        if sim_id not in active_simulations:
+            return jsonify({'error': 'Simulation not found'}), 404
+        
+        simulation = active_simulations[sim_id]['simulation']
+        
+        # Get count of flammable cells before ignition
+        flammable_count = simulation.get_flammable_cell_count()
+        
+        if flammable_count == 0:
+            return jsonify({
+                'success': False,
+                'message': 'No flammable areas available for ignition'
+            }), 400
+        
+        # Perform random ignition
+        ignited_count = simulation.random_ignite(num_ignitions, ignition_probability)
+        
+        if ignited_count > 0:
+            # Get current visualization
+            viz_service = active_simulations[sim_id]['visualization']
+            fire_overlay = viz_service.create_fire_overlay(simulation)
+            terrain_image = simulation.get_terrain_state_array()
+            composite = viz_service.create_composite_image(terrain_image, fire_overlay)
+            
+            # Convert to base64
+            composite_b64 = viz_service.image_to_base64(composite)
+            
+            return jsonify({
+                'success': True,
+                'message': f'Successfully ignited {ignited_count} fires randomly',
+                'ignited_count': ignited_count,
+                'flammable_cells': flammable_count,
+                'visualization': composite_b64,
+                'statistics': {
+                    'burning_cells': simulation.burning_cells,
+                    'burned_cells': simulation.burned_cells,
+                    'step': simulation.step_count
+                }
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to ignite any fires'
+            }), 400
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @simulation_bp.route('/step', methods=['POST'])
 def step_simulation():
     """Advance simulation by one or more steps"""
