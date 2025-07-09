@@ -1,0 +1,4 @@
+Ursina==0.8.0
+numpy==1.21.0
+pygame==2.0.1
+matplotlib>=3.5.0

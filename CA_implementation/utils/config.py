@@ -4,9 +4,9 @@ CELL_SIZE = 5    # Each cell will be 5x5 pixels
 FPS = 10         # Frames per second
 
 # Fire simulation parameters
-IGNITION_PROBABILITY = 0.0001  # Probability of spontaneous ignition
-SPREAD_PROBABILITY = 0.3       # Probability fire spreads to adjacent cells
-BURN_TIME = 5                  # How many steps a cell burns before becoming ash
+IGNITION_PROBABILITY = 0  # Probability of spontaneous ignition
+SPREAD_PROBABILITY = 0.3      # Probability fire spreads to adjacent cells
+BURN_TIME = 3                  # How many steps a cell burns before becoming ash
 
 # Colors for different cell states
 COLORS = {
