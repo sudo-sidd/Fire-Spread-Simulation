@@ -35,12 +35,12 @@ def select_area():
         logger.info(f"Creating 2D grid for lat={lat}, lon={lon}, grid_size={grid_size}")
         
         # Import here to avoid circular imports
-        from services.map_tile_service import MapTileClassifier
+        from services.vector_tile_service import VectorTileClassifier
         import asyncio
         
         # Create classifier and run async classification to get 2D cell grid
-        logger.info("Creating MapTileClassifier...")
-        classifier = MapTileClassifier()
+        logger.info("Creating VectorTileClassifier...")
+        classifier = VectorTileClassifier()
         
         # Run the async function in a new event loop
         logger.info("Starting async grid classification...")
@@ -69,13 +69,8 @@ def select_area():
         
         # Calculate statistics
         logger.info("Calculating statistics...")
-        terrain_counts = {}
+        terrain_counts = classifier.get_terrain_statistics(grid_classification)
         total_cells = grid_size * grid_size
-        
-        for row in grid_classification:
-            for cell in row:
-                terrain_type = cell['terrain_type']
-                terrain_counts[terrain_type] = terrain_counts.get(terrain_type, 0) + 1
         
         # Convert to percentages
         terrain_percentages = {
@@ -88,7 +83,7 @@ def select_area():
         response_data = {
             'success': True,
             'grid_classification': grid_classification,
-            'legend_colors': classifier.legend_colors,
+            'legend_colors': classifier.terrain_colors,
             'grid_bounds': grid_bounds,
             'statistics': {
                 'total_cells': total_cells,
@@ -100,7 +95,7 @@ def select_area():
                 'center_lat': lat,
                 'center_lon': lon,
                 'cell_size_degrees': cell_size_degrees,
-                'classification_method': 'map_tiles_grid',
+                'classification_method': 'osm_vector_tiles',
                 'grid_type': '2d_cell_sheet'
             },
             'message': f'2D Grid created for coordinates ({lat:.4f}, {lon:.4f})'

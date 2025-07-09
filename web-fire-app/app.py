@@ -11,6 +11,7 @@ from datetime import datetime
 
 from api.map_api import map_bp
 from api.simulation_api import simulation_bp
+from api.enhanced_simulation_api import enhanced_simulation_bp
 from api.terrain_api import terrain_bp
 from core.config import Config
 
@@ -31,6 +32,7 @@ def create_app():
     # Register blueprints
     app.register_blueprint(map_bp, url_prefix='/api/map')
     app.register_blueprint(simulation_bp, url_prefix='/api/simulation')
+    app.register_blueprint(enhanced_simulation_bp, url_prefix='/api/enhanced-simulation')
     app.register_blueprint(terrain_bp, url_prefix='/api/terrain')
     
     @app.route('/')
