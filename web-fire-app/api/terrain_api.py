@@ -173,28 +173,39 @@ def get_terrain_presets():
 def classify_grid():
     """Classify terrain for a grid using real map tile imagery"""
     try:
+        logger.info("=== CLASSIFY GRID ENDPOINT CALLED ===")
         data = request.get_json()
+        logger.info(f"Received data: {data}")
+        
         lat = float(data.get('lat'))
         lon = float(data.get('lon'))
         grid_size = int(data.get('grid_size', Config.GRID_SIZE))
         cell_size = float(data.get('cell_size_degrees', 0.001))
         
-        logger.info(f"Classifying grid at {lat}, {lon} with size {grid_size}")
+        logger.info(f"Classifying grid at {lat}, {lon} with size {grid_size}, cell_size {cell_size}")
         
         # Create classifier and run async classification
+        logger.info("Creating MapTileClassifier...")
         classifier = MapTileClassifier()
+        logger.info("MapTileClassifier created successfully")
         
         # Run the async function in a new event loop
+        logger.info("Starting async grid classification...")
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
+            logger.info("Running classify_grid_area...")
             grid_classification = loop.run_until_complete(
                 classifier.classify_grid_area(lat, lon, grid_size, cell_size)
             )
+            logger.info(f"Grid classification completed. Result type: {type(grid_classification)}")
+            logger.info(f"Grid classification length: {len(grid_classification) if grid_classification else 'None'}")
         finally:
             loop.close()
+            logger.info("Event loop closed")
         
         # Calculate statistics
+        logger.info("Calculating statistics...")
         terrain_counts = {}
         total_cells = grid_size * grid_size
         
@@ -209,7 +220,10 @@ def classify_grid():
             for terrain, count in terrain_counts.items()
         }
         
-        return jsonify({
+        logger.info(f"Statistics calculated. Terrain counts: {terrain_counts}")
+        logger.info(f"Returning response with {len(grid_classification)} rows")
+        
+        response_data = {
             'success': True,
             'grid_classification': grid_classification,
             'legend_colors': classifier.legend_colors,
@@ -225,7 +239,10 @@ def classify_grid():
                 'cell_size_degrees': cell_size,
                 'classification_method': 'map_tiles'
             }
-        })
+        }
+        
+        logger.info("=== CLASSIFY GRID ENDPOINT RETURNING SUCCESS ===")
+        return jsonify(response_data)
         
     except Exception as e:
         logger.error(f"Error in grid classification: {e}")

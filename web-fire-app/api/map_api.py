@@ -7,6 +7,9 @@ from flask import Blueprint, request, jsonify
 from services.terrain_service import TerrainExtractor
 from services.visualization_service import VisualizationService
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 map_bp = Blueprint('map', __name__)
 
@@ -14,40 +17,100 @@ map_bp = Blueprint('map', __name__)
 def select_area():
     """Handle map area selection from coordinates"""
     try:
+        logger.info("=== MAP SELECT AREA ENDPOINT CALLED ===")
         data = request.get_json()
+        logger.info(f"Received data: {data}")
+        
         lat = float(data.get('lat'))
         lon = float(data.get('lon'))
         zoom = int(data.get('zoom', 15))
-        grid_size = data.get('grid_size', [200, 200])
+        grid_size = data.get('grid_size', [50, 50])  # Default to 50x50 grid
         
-        print(f"Extracting terrain for lat={lat}, lon={lon}, grid_size={grid_size}")
+        # Convert grid_size to single integer if it's a list
+        if isinstance(grid_size, list):
+            grid_size = grid_size[0]  # Assume square grid
         
-        # Extract terrain data
-        terrain_extractor = TerrainExtractor()
-        terrain_bitmap, color_map, metadata = terrain_extractor.create_terrain_bitmap(
-            lat, lon, tuple(grid_size)
-        )
+        cell_size_degrees = 0.001  # Approximately 100m at equator
         
-        print(f"Terrain bitmap shape: {terrain_bitmap.shape}")
-        print(f"Terrain bitmap dtype: {terrain_bitmap.dtype}")
-        print(f"Color map keys: {list(color_map.keys())}")
+        logger.info(f"Creating 2D grid for lat={lat}, lon={lon}, grid_size={grid_size}")
         
-        # Convert to base64 for client
-        viz_service = VisualizationService()
-        terrain_b64 = viz_service.image_to_base64(terrain_bitmap)
+        # Import here to avoid circular imports
+        from services.map_tile_service import MapTileClassifier
+        import asyncio
         
-        print(f"Base64 string length: {len(terrain_b64)}")
-        print(f"Base64 prefix: {terrain_b64[:50]}...")
+        # Create classifier and run async classification to get 2D cell grid
+        logger.info("Creating MapTileClassifier...")
+        classifier = MapTileClassifier()
         
-        return jsonify({
+        # Run the async function in a new event loop
+        logger.info("Starting async grid classification...")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            logger.info("Running classify_grid_area...")
+            grid_classification = loop.run_until_complete(
+                classifier.classify_grid_area(lat, lon, grid_size, cell_size_degrees)
+            )
+            logger.info(f"Grid classification completed. Grid size: {len(grid_classification)}x{len(grid_classification[0])}")
+        finally:
+            loop.close()
+            logger.info("Event loop closed")
+        
+        # Calculate grid bounds
+        half_lat = (cell_size_degrees * grid_size) / 2
+        half_lon = (cell_size_degrees * grid_size) / 2
+        
+        grid_bounds = {
+            'north': lat + half_lat,
+            'south': lat - half_lat,
+            'east': lon + half_lon,
+            'west': lon - half_lon
+        }
+        
+        # Calculate statistics
+        logger.info("Calculating statistics...")
+        terrain_counts = {}
+        total_cells = grid_size * grid_size
+        
+        for row in grid_classification:
+            for cell in row:
+                terrain_type = cell['terrain_type']
+                terrain_counts[terrain_type] = terrain_counts.get(terrain_type, 0) + 1
+        
+        # Convert to percentages
+        terrain_percentages = {
+            terrain: (count / total_cells) * 100 
+            for terrain, count in terrain_counts.items()
+        }
+        
+        logger.info(f"Statistics calculated. Terrain counts: {terrain_counts}")
+        
+        response_data = {
             'success': True,
-            'terrain_image': terrain_b64,
-            'color_map': {str(k): v for k, v in color_map.items()},
-            'metadata': metadata,
-            'message': f'Terrain extracted for coordinates ({lat:.4f}, {lon:.4f})'
-        })
+            'grid_classification': grid_classification,
+            'legend_colors': classifier.legend_colors,
+            'grid_bounds': grid_bounds,
+            'statistics': {
+                'total_cells': total_cells,
+                'terrain_counts': terrain_counts,
+                'terrain_percentages': terrain_percentages,
+                'grid_size': grid_size
+            },
+            'metadata': {
+                'center_lat': lat,
+                'center_lon': lon,
+                'cell_size_degrees': cell_size_degrees,
+                'classification_method': 'map_tiles_grid',
+                'grid_type': '2d_cell_sheet'
+            },
+            'message': f'2D Grid created for coordinates ({lat:.4f}, {lon:.4f})'
+        }
+        
+        logger.info("=== MAP SELECT AREA ENDPOINT RETURNING SUCCESS ===")
+        return jsonify(response_data)
         
     except Exception as e:
+        logger.error(f"Error in map select area: {e}")
         return jsonify({
             'success': False,
             'error': str(e),

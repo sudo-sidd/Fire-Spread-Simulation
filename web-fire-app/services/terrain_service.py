@@ -53,6 +53,19 @@ class TerrainExtractor:
         
         return classified_terrain
     
+    def _classify_terrain_from_map(self, map_image: np.ndarray, grid_size: Tuple[int, int]) -> np.ndarray:
+        """Classify terrain from map image and resize to grid dimensions"""
+        
+        # First classify the terrain using pixel analysis
+        classified_image = self._classify_terrain(map_image)
+        
+        # Resize to the desired grid size
+        from PIL import Image
+        pil_image = Image.fromarray(classified_image)
+        resized_image = pil_image.resize(grid_size, Image.NEAREST)
+        
+        return np.array(resized_image)
+    
     def _calculate_bbox(self, lat: float, lon: float, zoom: int, grid_size: Tuple[int, int]) -> Dict:
         """Calculate bounding box for the grid area"""
         # Approximate calculation for demo - in production use proper map projection
@@ -83,10 +96,10 @@ class TerrainExtractor:
             print(f"Error downloading map tiles: {e}")
             return self._generate_synthetic_terrain(0, 0, grid_size)
     
-    def _create_realistic_terrain_map(self, lat: float, lon: float, size: Tuple[int, int]) -> np.ndarray:
+    def _create_realistic_terrain_map(self, lat: float, lon: float, grid_size: Tuple[int, int]) -> np.ndarray:
         """Create a more realistic terrain map based on geographical features"""
         
-        width, height = size
+        width, height = grid_size
         terrain_image = np.zeros((height, width, 3), dtype=np.uint8)
         
         # Base terrain determination based on coordinates
@@ -335,10 +348,10 @@ class TerrainExtractor:
         return self._generate_synthetic_terrain(0, 0, size)
     
     def _generate_synthetic_terrain(self, lat: float, lon: float, 
-                                  size: Tuple[int, int]) -> np.ndarray:
+                                  grid_size: Tuple[int, int]) -> np.ndarray:
         """Generate synthetic terrain when real data is unavailable"""
         
-        width, height = size
+        width, height = grid_size
         terrain_image = np.zeros((height, width, 3), dtype=np.uint8)
         
         # Create base terrain (grass)
@@ -452,7 +465,7 @@ class TerrainExtractor:
             grid_size = (Config.GRID_SIZE, Config.GRID_SIZE)
         
         # Extract terrain data
-        terrain_data = self.extract_from_coordinates(lat, lon, size=grid_size)
+        terrain_data = self.extract_from_coordinates(lat, lon, grid_size=grid_size)
         
         # Create color mapping for the simulation
         color_map = {}

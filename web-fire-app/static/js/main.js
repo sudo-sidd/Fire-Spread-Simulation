@@ -655,10 +655,15 @@ class FireSimulationApp {
             this.showToast('Invalid Coordinates', 'Please enter valid latitude and longitude', 'error');
             return;
         }
+
+        console.log('=== STARTING TERRAIN EXTRACTION ===');
+        console.log(`Coordinates: lat=${lat}, lon=${lon}`);
+        console.log(`Grid size: ${this.gridSize}`);
         
         this.showLoading('Extracting Terrain...', 'Processing satellite imagery and generating terrain data');
         
         try {
+            console.log('Making API call to /api/map/select-area...');
             const response = await fetch('/api/map/select-area', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -670,33 +675,40 @@ class FireSimulationApp {
                 })
             });
             
+            console.log('API response received:', response.status, response.statusText);
             const data = await response.json();
+            console.log('API response data:', data);
             
             console.log('Terrain API response:', {
                 success: data.success,
-                hasTerrainImage: !!data.terrain_image,
-                hasColorMap: !!data.color_map,
-                terrainImagePrefix: data.terrain_image ? data.terrain_image.substring(0, 50) + '...' : 'none'
+                hasGridClassification: !!data.grid_classification,
+                hasLegendColors: !!data.legend_colors,
+                gridSize: data.statistics?.grid_size,
+                totalCells: data.statistics?.total_cells
             });
             
             if (data.success) {
+                console.log('Success response received, setting terrainData...');
                 this.terrainData = data;
                 
-                // Create grid overlay
-                this.createGridOverlay(lat, lon);
+                console.log('Creating 2D grid overlay from classification...');
+                // Create 2D grid overlay using the grid classification
+                this.create2DGridOverlay(data, lat, lon);
                 
-                // Classify grid cells based on terrain data
-                this.classifyGridCells(data);
-                
+                console.log('Creating simulation...');
                 // Create simulation
                 await this.createSimulation();
                 
+                console.log('Hiding loading and showing success toast...');
                 this.hideLoading();
-                this.showToast('Terrain Loaded', 'Click on grid cells to start fires', 'success');
+                this.showToast('2D Grid Created', 'Click on grid cells to start fires', 'success');
+                console.log('=== 2D GRID CREATION COMPLETED SUCCESSFULLY ===');
             } else {
-                throw new Error(data.error || 'Failed to extract terrain');
+                console.error('API returned error:', data.error);
+                throw new Error(data.error || 'Failed to create 2D grid');
             }
         } catch (error) {
+            console.error('Error in selectCurrentArea:', error);
             this.hideLoading();
             this.showToast('Terrain Error', error.message, 'error');
         }
@@ -1149,6 +1161,132 @@ class FireSimulationApp {
         
         legendPanel.innerHTML = legendHTML;
         legendPanel.style.display = 'block';
+    }
+    
+    create2DGridOverlay(responseData, centerLat, centerLon) {
+        console.log('Creating 2D grid overlay from classification data...');
+        
+        // Clear existing overlays
+        if (this.gridOverlay) {
+            this.map.removeLayer(this.gridOverlay);
+        }
+        if (this.boundaryRect) {
+            this.map.removeLayer(this.boundaryRect);
+        }
+        
+        const gridClassification = responseData.grid_classification;
+        const legendColors = responseData.legend_colors;
+        const gridBounds = responseData.grid_bounds;
+        const gridSize = responseData.statistics.grid_size;
+        
+        console.log(`Creating ${gridSize}x${gridSize} grid with bounds:`, gridBounds);
+        
+        // Initialize grid cells array
+        this.gridCells = [];
+        this.terrainStatistics = responseData.statistics;
+        this.legendColors = legendColors;
+        
+        // Set selected bounds for map fitting
+        this.selectedBounds = gridBounds;
+        
+        // Create grid cells from classification data
+        for (let row = 0; row < gridSize; row++) {
+            this.gridCells[row] = [];
+            for (let col = 0; col < gridSize; col++) {
+                const cellData = gridClassification[row][col];
+                const cellLat = cellData.lat;
+                const cellLon = cellData.lon;
+                const cellSizeDegrees = responseData.metadata.cell_size_degrees;
+                
+                // Calculate cell bounds
+                const bounds = [
+                    [cellLat - cellSizeDegrees/2, cellLon - cellSizeDegrees/2],
+                    [cellLat + cellSizeDegrees/2, cellLon + cellSizeDegrees/2]
+                ];
+                
+                // Create rectangle for this cell
+                const cell = L.rectangle(bounds, {
+                    fillColor: cellData.color,
+                    fillOpacity: 0.7,
+                    color: '#000',
+                    weight: 0.3,
+                    className: 'grid-cell'
+                });
+                
+                // Store cell data
+                cell.gridRow = row;
+                cell.gridCol = col;
+                cell.terrainType = cellData.terrain_type;
+                cell.fireState = 'normal'; // normal, burning, burned
+                cell.originalColor = cellData.color;
+                
+                // Add click handler for fire ignition
+                cell.on('click', (e) => {
+                    if (this.currentSimulationId) {
+                        this.igniteFireAtGridCell(row, col);
+                    }
+                    L.DomEvent.stopPropagation(e);
+                });
+                
+                // Add hover effects
+                cell.on('mouseover', (e) => {
+                    e.target.setStyle({
+                        weight: 2,
+                        fillOpacity: 0.9
+                    });
+                });
+                
+                cell.on('mouseout', (e) => {
+                    if (e.target.fireState === 'normal') {
+                        e.target.setStyle({
+                            weight: 0.3,
+                            fillOpacity: 0.7
+                        });
+                    }
+                });
+                
+                // Add tooltip with terrain info
+                cell.bindTooltip(
+                    `Terrain: ${cellData.terrain_type}<br>` +
+                    `Grid: (${row}, ${col})<br>` +
+                    `Coordinates: (${cellLat.toFixed(4)}, ${cellLon.toFixed(4)})<br>` +
+                    `Click to ignite fire`,
+                    {
+                        permanent: false,
+                        direction: 'top'
+                    }
+                );
+                
+                this.gridCells[row][col] = cell;
+            }
+        }
+        
+        // Create layer group for grid overlay
+        this.gridOverlay = L.layerGroup(this.gridCells.flat()).addTo(this.map);
+        
+        // Add boundary rectangle
+        this.boundaryRect = L.rectangle([
+            [gridBounds.south, gridBounds.west],
+            [gridBounds.north, gridBounds.east]
+        ], {
+            fillOpacity: 0,
+            color: '#ff0000',
+            weight: 3,
+            dashArray: '10, 10'
+        }).addTo(this.map);
+        
+        // Fit map to grid bounds
+        this.map.fitBounds([
+            [gridBounds.south, gridBounds.west],
+            [gridBounds.north, gridBounds.east]
+        ]);
+        
+        // Update terrain legend
+        this.updateTerrainLegend(responseData.statistics, legendColors);
+        
+        console.log('2D Grid overlay created successfully!');
+        console.log(`Grid contains ${gridSize}x${gridSize} = ${responseData.statistics.total_cells} cells`);
+        console.log('Terrain distribution:', responseData.statistics.terrain_percentages);
     }
 }
 
