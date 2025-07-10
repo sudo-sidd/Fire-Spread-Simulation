@@ -377,13 +377,18 @@ class FireSimulationApp {
         // Update grid cells based on fire simulation state
         if (!visualizationData || !this.gridCells) return;
         
-        // If visualization data is base64 image, we need to parse it into grid states
-        // For now, we'll simulate the fire spread visually on the grid
-        // In a full implementation, the backend would return grid state data
+        console.log('Updating grid visualization...');
         
-        // Placeholder: update some cells to show fire spread
-        // This should be replaced with actual fire state data from the backend
-        console.log('Updating grid visualization with:', visualizationData);
+        // Try to get current fire states from the backend and update grid
+        this.getSimulationFireStates().then(fireStates => {
+            if (fireStates) {
+                this.updateGridWithFireStates(fireStates);
+            } else {
+                // Fallback: trigger a manual update of fire states
+                console.log('Could not get fire states, using fallback visualization');
+                this.updateFireStatesFromSimulation();
+            }
+        });
     }
     
     updateFireStatesFromSimulation() {
@@ -1018,15 +1023,24 @@ class FireSimulationApp {
     }
     
     setSimulationControlsEnabled(enabled) {
-        const controls = ['playBtn', 'pauseBtn', 'stepBtn', 'resetBtn'];
+        const controls = ['randomIgniteBtn', 'playBtn', 'pauseBtn', 'stepBtn', 'resetBtn'];
         controls.forEach(id => {
             document.getElementById(id).disabled = !enabled;
         });
     }
     
     updateSimulationButtons() {
-        document.getElementById('playBtn').disabled = this.isSimulationRunning;
-        document.getElementById('pauseBtn').disabled = !this.isSimulationRunning;
+        const hasSimulation = !!this.currentSimulationId;
+        const isRunning = this.isSimulationRunning;
+        
+        // Enable random ignite button if simulation exists
+        document.getElementById('randomIgniteBtn').disabled = !hasSimulation;
+        
+        // Other buttons depend on whether simulation is running
+        document.getElementById('playBtn').disabled = !hasSimulation || isRunning;
+        document.getElementById('pauseBtn').disabled = !hasSimulation || !isRunning;
+        document.getElementById('stepBtn').disabled = !hasSimulation || isRunning;
+        document.getElementById('resetBtn').disabled = !hasSimulation;
     }
     
     toggleMapVisibility() {
@@ -1302,21 +1316,27 @@ class FireSimulationApp {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     simulation_id: this.currentSimulationId,
-                    num_ignitions: 3, // Start 3 random fires
-                    ignition_probability: 0.02 // 2% chance per flammable cell as fallback
+                    num_ignitions: 5, // Start 5 random fires like CA implementation
+                    ignition_probability: 0.01 // 1% chance per flammable cell as fallback
                 })
             });
             
             const data = await response.json();
             
             if (data.success) {
+                // Update visualization to show the fires
                 this.updateGridVisualization(data.visualization);
                 this.updateStatistics(data.statistics);
+                
+                // Update grid cells visually to show the fires
+                this.updateFireStatesFromSimulation();
+                
                 this.showToast('Random Fires Started', 
-                    `Successfully ignited ${data.ignited_count} fires in ${data.flammable_cells} flammable areas`, 
+                    `Successfully ignited ${data.ignited_count} fires in ${data.flammable_cells} flammable areas. ` +
+                    `Click "Start Simulation" to begin cellular automata fire spread.`, 
                     'warning');
                 
-                // Enable simulation controls since fires are now active
+                // Enable all simulation controls since fires are now active
                 this.updateSimulationButtons();
             } else {
                 this.showToast('Failed to Start Fires', data.message, 'error');

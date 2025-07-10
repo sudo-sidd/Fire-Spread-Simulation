@@ -124,33 +124,52 @@ class FireSimulation:
         return False
     
     def step(self) -> Dict:
-        """Advance simulation by one time step"""
+        """Advance simulation by one time step using cellular automata approach"""
         self.step_count += 1
         new_ignitions = []
         state_changes = 0
         
-        # Update existing cells
+        # Create a copy of the current grid state for simultaneous updates (CA approach)
+        next_grid_states = {}
+        
+        # First pass: Update all cell states and determine fire spread
         for y in range(self.height):
             for x in range(self.width):
-                if self.grid[y][x].update(self.weather):
-                    state_changes += 1
+                current_cell = self.grid[y][x]
+                next_grid_states[(x, y)] = current_cell.fire_state
+                
+                # Update burning cells (similar to CA: burning -> burned)
+                if current_cell.fire_state == 1:  # Currently burning
+                    # Update burn time
+                    current_cell.burn_time += 1
+                    
+                    # Check if cell should burn out (like CA: burning becomes ash)
+                    if (current_cell.burn_time >= current_cell.max_burn_time or 
+                        self.weather.precipitation > 5.0):  # Heavy rain extinguishes
+                        next_grid_states[(x, y)] = 2  # Becomes burned
+                        current_cell.fuel_load = 0
+                        state_changes += 1
+                    
+                    # Spread fire to neighbors (CA fire spread logic)
+                    self._spread_fire_to_neighbors(x, y, new_ignitions)
+                
+                elif current_cell.fire_state == 0:  # Normal cell
+                    # Check for spontaneous ignition (like CA spontaneous ignition)
+                    if (current_cell.can_ignite() and 
+                        random.random() < Config.IGNITION_PROBABILITY):
+                        new_ignitions.append((x, y))
         
-        # Fire spread phase
-        for y in range(self.height):
-            for x in range(self.width):
-                if self.grid[y][x].fire_state == 1:  # If burning
-                    # Spread to neighbors
-                    spread_positions = self._get_spread_candidates(x, y)
-                    for nx, ny, spread_prob in spread_positions:
-                        if (0 <= nx < self.width and 0 <= ny < self.height and
-                            self.grid[ny][nx].can_ignite() and
-                            random.random() < spread_prob):
-                            new_ignitions.append((nx, ny))
+        # Second pass: Apply all state changes simultaneously (CA approach)
+        for (x, y), new_state in next_grid_states.items():
+            if self.grid[y][x].fire_state != new_state:
+                self.grid[y][x].fire_state = new_state
+                state_changes += 1
         
-        # Apply new ignitions
+        # Apply new ignitions from fire spread
         for x, y in new_ignitions:
-            self.grid[y][x].ignite()
-            state_changes += 1
+            if self.grid[y][x].can_ignite():
+                self.grid[y][x].ignite()
+                state_changes += 1
         
         # Update statistics
         self._update_statistics()
@@ -163,6 +182,31 @@ class FireSimulation:
             'burned_cells': self.burned_cells,
             'total_burned_area_km2': self.total_burned_area
         }
+    
+    def _spread_fire_to_neighbors(self, x: int, y: int, new_ignitions: List[Tuple[int, int]]):
+        """Spread fire to neighboring cells using CA-style rules"""
+        # CA-style 4-directional spread (or 8-directional for more realistic spread)
+        directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # 4-directional like basic CA
+        # For 8-directional: directions = [(-1,-1), (-1,0), (-1,1), (0,-1), (0,1), (1,-1), (1,0), (1,1)]
+        
+        current_cell = self.grid[y][x]
+        base_spread_rate = current_cell.terrain_props['spread_rate']
+        
+        for dx, dy in directions:
+            nx, ny = x + dx, y + dy
+            
+            # Check bounds
+            if 0 <= nx < self.width and 0 <= ny < self.height:
+                neighbor_cell = self.grid[ny][nx]
+                
+                # Can only spread to flammable cells (like CA: only spread to trees)
+                if neighbor_cell.can_ignite():
+                    # Calculate spread probability based on terrain and weather
+                    spread_prob = self._calculate_spread_probability(x, y, nx, ny, base_spread_rate)
+                    
+                    # CA-style probabilistic spread
+                    if random.random() < spread_prob:
+                        new_ignitions.append((nx, ny))
     
     def _get_spread_candidates(self, x: int, y: int) -> List[Tuple[int, int, float]]:
         """Get neighboring cells with spread probabilities"""
@@ -280,7 +324,7 @@ class FireSimulation:
     
     def get_cell_state(self, row: int, col: int) -> str:
         """Get the fire state of a specific cell"""
-        if (0 <= row < self.grid_height and 0 <= col < self.grid_width):
+        if (0 <= row < self.height and 0 <= col < self.width):
             cell = self.grid[row][col]
             if cell.fire_state == 0:
                 return 'normal'
@@ -294,23 +338,23 @@ class FireSimulation:
     
     def get_cell_terrain(self, row: int, col: int) -> str:
         """Get the terrain type of a specific cell"""
-        if (0 <= row < self.grid_height and 0 <= col < self.grid_width):
+        if (0 <= row < self.height and 0 <= col < self.width):
             return self.grid[row][col].terrain_type
         return 'grass'
     
     def get_all_fire_states(self) -> List[List[str]]:
         """Get fire states for all cells in the grid"""
         states = []
-        for row in range(self.grid_height):
+        for row in range(self.height):
             row_states = []
-            for col in range(self.grid_width):
+            for col in range(self.width):
                 row_states.append(self.get_cell_state(row, col))
             states.append(row_states)
         return states
     
-    def random_ignite(self, num_ignitions: int = None, ignition_probability: float = 0.05) -> int:
+    def random_ignite(self, num_ignitions: int = None, ignition_probability: float = 0.02) -> int:
         """
-        Randomly ignite flammable cells across the grid
+        Randomly ignite flammable cells across the grid using cellular automata approach
         
         Args:
             num_ignitions: Number of fires to start. If None, uses probability-based ignition
@@ -321,11 +365,13 @@ class FireSimulation:
         """
         flammable_cells = []
         
-        # Find all flammable cells
+        # Find all flammable cells (similar to CA implementation)
         for y in range(self.height):
             for x in range(self.width):
                 cell = self.grid[y][x]
-                if cell.can_ignite():
+                # Only ignite cells that can burn (like trees in CA)
+                if (cell.can_ignite() and 
+                    cell.terrain_type in ['forest', 'grass', 'shrub', 'agriculture']):
                     flammable_cells.append((y, x))
         
         if not flammable_cells:
@@ -334,19 +380,26 @@ class FireSimulation:
         ignited_count = 0
         
         if num_ignitions is not None:
-            # Ignite a specific number of random cells
+            # Ignite a specific number of random cells (like manual ignition in CA)
             num_to_ignite = min(num_ignitions, len(flammable_cells))
             selected_cells = random.sample(flammable_cells, num_to_ignite)
             
             for y, x in selected_cells:
-                if self.ignite_at(x, y):
+                cell = self.grid[y][x]
+                if cell.can_ignite():
+                    cell.ignite()  # Set fire state to burning (like state 2 in CA)
                     ignited_count += 1
         else:
-            # Use probability-based ignition
+            # Use probability-based ignition (like spontaneous ignition in CA)
             for y, x in flammable_cells:
                 if random.random() < ignition_probability:
-                    if self.ignite_at(x, y):
+                    cell = self.grid[y][x]
+                    if cell.can_ignite():
+                        cell.ignite()
                         ignited_count += 1
+        
+        # Update statistics after ignition
+        self._update_statistics()
         
         return ignited_count
 
@@ -358,37 +411,3 @@ class FireSimulation:
                 if self.grid[y][x].can_ignite():
                     count += 1
         return count
-
-    def is_active(self) -> bool:
-        """Check if simulation has active fires"""
-        return self.burning_cells > 0
-    
-    def get_cell_state(self, row: int, col: int) -> str:
-        """Get the fire state of a specific cell"""
-        if (0 <= row < self.grid_height and 0 <= col < self.grid_width):
-            cell = self.grid[row][col]
-            if cell.fire_state == 0:
-                return 'normal'
-            elif cell.fire_state == 1:
-                return 'burning'
-            elif cell.fire_state == 2:
-                return 'burned'
-            elif cell.fire_state == 3:
-                return 'smoldering'
-        return 'normal'
-    
-    def get_cell_terrain(self, row: int, col: int) -> str:
-        """Get the terrain type of a specific cell"""
-        if (0 <= row < self.grid_height and 0 <= col < self.grid_width):
-            return self.grid[row][col].terrain_type
-        return 'grass'
-    
-    def get_all_fire_states(self) -> List[List[str]]:
-        """Get fire states for all cells in the grid"""
-        states = []
-        for row in range(self.grid_height):
-            row_states = []
-            for col in range(self.grid_width):
-                row_states.append(self.get_cell_state(row, col))
-            states.append(row_states)
-        return states

@@ -286,22 +286,29 @@
                     <h6>1. Select Location</h6>
                     <p>Use the search box or enter coordinates to select an area on the world map. Click "Select Area" to extract terrain data.</p>
                     
-                    <h6>2. Start Fire</h6>
-                    <p>Once terrain is loaded, click anywhere on the map to ignite a fire at that location.</p>
+                    <h6>2. Start Fires</h6>
+                    <p>Once terrain is loaded, you have two options:</p>
+                    <ul>
+                        <li><strong>Random Fires:</strong> Click "Start Random Fires" to automatically ignite multiple fires in flammable areas</li>
+                        <li><strong>Manual Fires:</strong> Click anywhere on individual grid cells to ignite fires at specific locations</li>
+                    </ul>
                     
-                    <h6>3. Control Simulation</h6>
-                    <p>Use the simulation controls to start, pause, or step through the fire spread simulation.</p>
+                    <h6>3. Run Cellular Automata Simulation</h6>
+                    <p>After starting fires, click "Start Simulation" to begin the cellular automata fire spread simulation. Use pause, step, or reset controls as needed.</p>
                     
                     <h6>4. Adjust Weather</h6>
-                    <p>Modify wind speed, direction, humidity, and temperature to see how weather affects fire behavior.</p>
+                    <p>Modify wind speed, direction, humidity, and temperature to see how weather affects fire behavior in the cellular automata model.</p>
                     
                     <h6>Color Legend</h6>
                     <ul>
-                        <li><span style="color: #008000;">Green</span> - Forest and vegetation (fuel)</li>
-                        <li><span style="color: #ff0000;">Red</span> - Active fire</li>
+                        <li><span style="color: #008000;">Dark Green</span> - Forest (high fuel load)</li>
+                        <li><span style="color: #7CFC00;">Light Green</span> - Grass (medium fuel load)</li>
+                        <li><span style="color: #228B22;">Green</span> - Shrubland (medium fuel load)</li>
+                        <li><span style="color: #FFD700;">Gold</span> - Agriculture (low fuel load)</li>
+                        <li><span style="color: #ff0000;">Red</span> - Active fire (burning)</li>
                         <li><span style="color: #404040;">Dark Gray</span> - Burned areas</li>
-                        <li><span style="color: #0064c8;">Blue</span> - Water bodies</li>
-                        <li><span style="color: #808080;">Gray</span> - Urban areas</li>
+                        <li><span style="color: #0064c8;">Blue</span> - Water bodies (fireproof)</li>
+                        <li><span style="color: #808080;">Gray</span> - Urban areas (low fuel)</li>
                     </ul>
                 </div>
                 <div class="modal-footer">

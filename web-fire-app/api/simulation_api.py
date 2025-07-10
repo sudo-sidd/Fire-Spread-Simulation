@@ -411,8 +411,8 @@ def get_simulation_state(simulation_id):
                 'error': 'Simulation not found'
             }), 404
         
-        simulation = active_simulations[simulation_id]
-        fire_engine = simulation['fire_engine']
+        sim_data = active_simulations[simulation_id]
+        fire_engine = sim_data['simulation']
         
         # Get current fire states from the fire engine
         fire_states = fire_engine.get_all_fire_states()
@@ -423,7 +423,7 @@ def get_simulation_state(simulation_id):
             'metadata': {
                 'simulation_id': simulation_id,
                 'timestamp': time.time(),
-                'step': simulation.get('step', 0)
+                'step': fire_engine.step_count
             }
         })
         
