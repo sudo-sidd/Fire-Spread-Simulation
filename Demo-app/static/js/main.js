@@ -633,23 +633,56 @@ class FireSimulationApp {
     
     async searchLocation() {
         const address = document.getElementById('addressInput').value.trim();
-        if (!address) return;
+        if (!address) {
+            this.showToast('Input Required', 'Please enter a location to search', 'warning');
+            return;
+        }
         
         this.showLoading('Searching location...', 'Finding coordinates for the specified address');
         
         try {
             const response = await fetch(`/api/map/geocode?address=${encodeURIComponent(address)}`);
+            
+            if (!response.ok) {
+                if (response.status === 404) {
+                    throw new Error('Location not found. Try searching for a city, country, or landmark.');
+                } else if (response.status === 408) {
+                    throw new Error('Search timed out. Please try again.');
+                } else if (response.status === 503) {
+                    throw new Error('Location search service unavailable. Please try again later.');
+                } else {
+                    throw new Error(`Search failed with status ${response.status}`);
+                }
+            }
+            
             const data = await response.json();
             
             if (data.success) {
                 this.selectLocation(data.coordinates.lat, data.coordinates.lon);
                 this.hideLoading();
+                
+                // Show success message with formatted address if available
+                const message = data.formatted_address ? 
+                    `Found: ${data.formatted_address}` : 
+                    `Location found for: ${address}`;
+                this.showToast('Location Found', message, 'success');
+                
+                // Clear the search input
+                document.getElementById('addressInput').value = '';
             } else {
                 throw new Error(data.error || 'Geocoding failed');
             }
         } catch (error) {
             this.hideLoading();
-            this.showToast('Search Error', error.message, 'error');
+            console.error('Geocoding error:', error);
+            
+            // Provide helpful error messages
+            let errorMessage = error.message;
+            if (error.message.includes('fetch')) {
+                errorMessage = 'Network error. Please check your internet connection and try again.';
+            }
+            
+            this.showToast('Search Error', errorMessage, 'error');
         }
     }
     

@@ -38,6 +38,9 @@ A professional web application for simulating fire spread on real-world terrain 
 
 ## Installation
 
+### Prerequisites
+- **Python 3.11 or higher** - Required for optimal performance and compatibility
+
 1. **Clone the repository**
    ```bash
    cd /mnt/data/PROJECTS/Fire-Spread-Simulation-/web-fire-app

@@ -114,41 +114,86 @@ def select_area():
 
 @map_bp.route('/geocode', methods=['GET'])
 def geocode():
-    """Convert address to coordinates"""
+    """Convert address to coordinates using geopy"""
     try:
+        from geopy.geocoders import Nominatim
+        from geopy.exc import GeocoderTimedOut, GeocoderServiceError
+        
         address = request.args.get('address')
         if not address:
             return jsonify({'error': 'Address parameter required'}), 400
         
-        # Simple geocoding (in production, use proper geocoding service)
-        # For demo, return some sample coordinates
-        sample_locations = {
-            'california': {'lat': 36.7783, 'lon': -119.4179},
-            'australia': {'lat': -25.2744, 'lon': 133.7751},
-            'portugal': {'lat': 39.3999, 'lon': -8.2245},
-            'greece': {'lat': 39.0742, 'lon': 21.8243},
-            'canada': {'lat': 56.1304, 'lon': -106.3468}
-        }
+        logger.info(f"Geocoding request for address: {address}")
         
-        # Simple matching
-        address_lower = address.lower()
-        for key, coords in sample_locations.items():
-            if key in address_lower:
+        # Initialize geocoder
+        geolocator = Nominatim(user_agent="fire-simulation-app")
+        
+        try:
+            # Attempt to geocode the address
+            location = geolocator.geocode(address, timeout=10)
+            
+            if location:
+                logger.info(f"Geocoding successful: {location.latitude}, {location.longitude}")
                 return jsonify({
                     'success': True,
-                    'coordinates': coords,
-                    'address': address
+                    'coordinates': {
+                        'lat': location.latitude,
+                        'lon': location.longitude
+                    },
+                    'address': address,
+                    'formatted_address': location.address
                 })
-        
-        # Default location if no match
-        return jsonify({
-            'success': True,
-            'coordinates': {'lat': 39.8283, 'lon': -98.5795},
-            'address': address,
-            'message': 'Using default location'
-        })
+            else:
+                logger.warning(f"No results found for address: {address}")
+                # Fallback to sample locations for common queries
+                sample_locations = {
+                    'california': {'lat': 36.7783, 'lon': -119.4179},
+                    'australia': {'lat': -25.2744, 'lon': 133.7751},
+                    'portugal': {'lat': 39.3999, 'lon': -8.2245},
+                    'greece': {'lat': 39.0742, 'lon': 21.8243},
+                    'canada': {'lat': 56.1304, 'lon': -106.3468},
+                    'usa': {'lat': 39.8283, 'lon': -98.5795},
+                    'united states': {'lat': 39.8283, 'lon': -98.5795},
+                    'india': {'lat': 20.5937, 'lon': 78.9629},
+                    'europe': {'lat': 54.5260, 'lon': 15.2551},
+                    'asia': {'lat': 34.0479, 'lon': 100.6197}
+                }
+                
+                # Simple matching for fallback
+                address_lower = address.lower()
+                for key, coords in sample_locations.items():
+                    if key in address_lower:
+                        return jsonify({
+                            'success': True,
+                            'coordinates': coords,
+                            'address': address,
+                            'message': f'Using approximate location for {key}'
+                        })
+                
+                return jsonify({
+                    'success': False,
+                    'error': f'Location not found: {address}',
+                    'suggestion': 'Try searching for a city, country, or landmark'
+                }), 404
+                
+        except GeocoderTimedOut:
+            logger.error("Geocoding request timed out")
+            return jsonify({
+                'success': False,
+                'error': 'Location search timed out. Please try again.',
+                'code': 'TIMEOUT'
+            }), 408
+            
+        except GeocoderServiceError as e:
+            logger.error(f"Geocoding service error: {e}")
+            return jsonify({
+                'success': False,
+                'error': 'Location search service unavailable. Please try again later.',
+                'code': 'SERVICE_ERROR'
+            }), 503
         
     except Exception as e:
+        logger.error(f"Geocoding error: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
