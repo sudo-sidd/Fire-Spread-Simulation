@@ -223,9 +223,19 @@ def classify_grid():
         logger.info(f"Statistics calculated. Terrain counts: {terrain_counts}")
         logger.info(f"Returning response with {len(grid_classification)} rows")
         
+        # Calculate grid bounds
+        half_size = grid_size * cell_size / 2
+        grid_bounds = {
+            'north': lat + half_size,
+            'south': lat - half_size,
+            'east': lon + half_size,
+            'west': lon - half_size
+        }
+        
         response_data = {
             'success': True,
             'grid_classification': grid_classification,
+            'grid_bounds': grid_bounds,
             'legend_colors': classifier.legend_colors,
             'statistics': {
                 'total_cells': total_cells,

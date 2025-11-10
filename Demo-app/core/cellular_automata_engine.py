@@ -157,6 +157,33 @@ class CellularAutomatonEngine:
                 'moisture_loss_rate': 0.6,
                 'ignition_threshold': 0.8,  # Hard to ignite (low fuel)
                 'is_flammable': True
+            },
+            'snow': {
+                'max_burn_duration': 0,
+                'spread_probability': 0.0,
+                'fuel_consumption_rate': 0.0,
+                'heat_generation': 0.0,
+                'moisture_loss_rate': 0.0,
+                'ignition_threshold': 999.0,  # Impossible to ignite
+                'is_flammable': False  # Snow/ice cannot burn
+            },
+            'wetland': {
+                'max_burn_duration': 4,
+                'spread_probability': 0.4,
+                'fuel_consumption_rate': 0.15,
+                'heat_generation': 0.5,
+                'moisture_loss_rate': 0.08,
+                'ignition_threshold': 0.7,  # Hard to ignite (high moisture)
+                'is_flammable': True
+            },
+            'mangrove': {
+                'max_burn_duration': 6,
+                'spread_probability': 0.5,
+                'fuel_consumption_rate': 0.1,
+                'heat_generation': 0.7,
+                'moisture_loss_rate': 0.1,
+                'ignition_threshold': 0.6,  # Harder to ignite than regular forest
+                'is_flammable': True
             }
         }
     

@@ -84,48 +84,62 @@ class MapTileClassifier:
         return (lat_deg, lon_deg)
     
     async def download_tile(self, session: aiohttp.ClientSession, x: int, y: int, zoom: int) -> Optional[np.ndarray]:
-        """Download a single ESA WorldCover tile"""
+        """Download a single tile - ESA WorldCover via Terrascope WMTS or ESRI satellite"""
         try:
-            # ESA WorldCover 2021 tiles via their WMS service
-            # Using OpenLayers XYZ tile format
-            # Note: ESA WorldCover is available at zoom levels up to 16
+            # ESA WorldCover 2021 via Terrascope WMTS
+            # Using Web Mercator (EPSG:3857) tile matrix set for compatibility with web maps
+            # Reference: https://services.terrascope.be/wmts/v2
             
-            # Primary: ESA WorldCover tiles (land cover classification)
-            # Fallback: ESRI satellite imagery for visualization
-            urls = [
-                # ESA WorldCover Map - provides classified land cover data
-                f"https://services.terrascope.be/wms/v2?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&BBOX=-180,-90,180,90&CRS=EPSG:4326&WIDTH=256&HEIGHT=256&LAYERS=WORLDCOVER_2021_MAP&STYLES=&FORMAT=image/png&DPI=96&MAP_RESOLUTION=96&FORMAT_OPTIONS=dpi:96&TRANSPARENT=TRUE",
-                # Fallback to ESRI satellite
-                f"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{zoom}/{y}/{x}",
-            ]
+            # Build ESA WorldCover WMTS URL
+            # Note: Terrascope uses standard WMTS with Web Mercator projection
+            worldcover_url = (
+                f"https://services.terrascope.be/wmts/v2?"
+                f"Service=WMTS&"
+                f"Request=GetTile&"
+                f"Version=1.0.0&"
+                f"Layer=WORLDCOVER_2021_MAP&"
+                f"Style=default&"
+                f"Format=image/png&"
+                f"TileMatrixSet=GoogleMapsCompatible&"
+                f"TileMatrix={zoom}&"
+                f"TileRow={y}&"
+                f"TileCol={x}"
+            )
             
-            # For ESA WorldCover, we need to use their tile service
-            # Using the XYZ tile endpoint
-            esa_url = f"https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2021_3857/default/g/{zoom}/{y}/{x}.jpg"
+            # Backup: ESRI World Imagery (always works)
+            esri_url = f"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{zoom}/{y}/{x}"
             
-            # Try ESA WorldCover S2 Cloudless for base imagery combined with classification
-            # Then we'll use their classification API
-            worldcover_url = f"https://services.terrascope.be/wmts/v2?layer=WORLDCOVER_2021_MAP&style=default&tilematrixset=GoogleMapsCompatible&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image%2Fpng&TileMatrix={zoom}&TileCol={x}&TileRow={y}"
+            # Set headers to mimic a browser request
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
             
-            urls = [worldcover_url, esa_url, urls[1]]  # Try WorldCover first, then S2 cloudless, then ESRI
-            
-            for url in urls:
+            # Try ESA WorldCover first, then ESRI as fallback
+            for url in [worldcover_url, esri_url]:
                 try:
-                    async with session.get(url, timeout=10) as response:
+                    logger.debug(f"Downloading tile {x},{y} from {url[:60]}...")
+                    async with session.get(url, headers=headers, timeout=15) as response:
                         if response.status == 200:
                             image_data = await response.read()
+                            # Verify it's a valid image
                             image = Image.open(io.BytesIO(image_data))
-                            logger.debug(f"Downloaded tile from {url.split('/')[2]}")
+                            
+                            source = "ESA WorldCover" if "terrascope" in url else "ESRI"
+                            logger.info(f"✓ Downloaded tile ({x},{y}) from {source}")
                             return np.array(image.convert('RGB'))
+                        else:
+                            logger.warning(f"✗ HTTP {response.status} from {url[:60]}")
+                except asyncio.TimeoutError:
+                    logger.warning(f"⏱ Timeout for {url[:60]}")
                 except Exception as e:
-                    logger.debug(f"Failed to download from {url.split('/')[2]}: {e}")
+                    logger.warning(f"✗ Error from {url[:60]}: {str(e)[:80]}")
                     continue
             
-            logger.warning(f"Failed to download tile {x},{y},{zoom} from all sources")
+            logger.error(f"✗ Failed to download tile ({x},{y}) from all sources")
             return None
                     
         except Exception as e:
-            logger.error(f"Error downloading tile {x},{y},{zoom}: {e}")
+            logger.error(f"Error in download_tile ({x},{y},{zoom}): {e}")
             return None
     
     async def get_area_tiles(self, lat: float, lon: float, grid_size: int, 
@@ -146,6 +160,10 @@ class MapTileClassifier:
         min_x, max_y = self.deg2num(north, west, zoom)
         max_x, min_y = self.deg2num(south, east, zoom)
         
+        logger.info(f"📍 Area bounds: N={north:.4f}, S={south:.4f}, E={east:.4f}, W={west:.4f}")
+        logger.info(f"🗺️  Tile range: X=[{min_x},{max_x}], Y=[{min_y},{max_y}] at zoom {zoom}")
+        logger.info(f"📦 Total tiles to download: {(max_x - min_x + 1) * (max_y - min_y + 1)}")
+        
         # Download all tiles in the area
         tiles = {}
         
@@ -156,13 +174,24 @@ class MapTileClassifier:
                     task = self.download_tile(session, x, y, zoom)
                     tasks.append((x, y, task))
             
+            logger.info(f"⏳ Downloading {len(tasks)} tiles...")
+            
             # Wait for all downloads
             results = await asyncio.gather(*[task for _, _, task in tasks])
             
             # Organize tiles by coordinates
+            successful_downloads = 0
             for i, (x, y, _) in enumerate(tasks):
                 if results[i] is not None:
                     tiles[(x, y)] = results[i]
+                    successful_downloads += 1
+            
+            logger.info(f"✅ Successfully downloaded {successful_downloads}/{len(tasks)} tiles")
+            
+            if successful_downloads == 0:
+                logger.error("❌ No tiles were downloaded successfully!")
+            elif successful_downloads < len(tasks):
+                logger.warning(f"⚠️  Only {successful_downloads}/{len(tasks)} tiles downloaded")
         
         return tiles, zoom, (min_x, min_y, max_x, max_y)
     
@@ -421,6 +450,24 @@ class MapTileClassifier:
                 'moisture_retention': 0.5,
                 'flammability': 0.6,
                 'fuel_density': 0.5,
+                'is_flammable': True
+            },
+            'snow': {
+                'moisture_retention': 1.0,
+                'flammability': 0.0,
+                'fuel_density': 0.0,
+                'is_flammable': False
+            },
+            'wetland': {
+                'moisture_retention': 0.9,
+                'flammability': 0.3,
+                'fuel_density': 0.6,
+                'is_flammable': True
+            },
+            'mangrove': {
+                'moisture_retention': 0.8,
+                'flammability': 0.4,
+                'fuel_density': 0.9,
                 'is_flammable': True
             }
         }
