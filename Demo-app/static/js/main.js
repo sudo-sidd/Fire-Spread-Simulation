@@ -19,20 +19,31 @@ class FireSimulationApp {
     }
     
     init() {
+        console.log('=== Fire Simulation App Initializing ===');
         this.initializeMap();
         this.setupEventListeners();
         this.initializeControls();
+        
+        // Debug: Check if control panel exists
+        const controlPanel = document.querySelector('.control-panel');
+        if (controlPanel) {
+            console.log('✓ Control panel found in DOM');
+            console.log('Control panel display:', window.getComputedStyle(controlPanel).display);
+            console.log('Control panel visibility:', window.getComputedStyle(controlPanel).visibility);
+        } else {
+            console.error('✗ Control panel NOT found in DOM!');
+        }
         
         console.log('Fire Simulation App initialized');
     }
     
     initializeMap() {
-        // Initialize Leaflet map
-        this.map = L.map('worldMap').setView([39.8283, -98.5795], 4);
+        // Initialize Leaflet map centered on India
+        this.map = L.map('worldMap').setView([20.5937, 78.9629], 5);
         
-        // Add tile layer
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors',
+        // Add ESRI World Imagery satellite tile layer
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
             maxZoom: 18
         }).addTo(this.map);
         
@@ -40,6 +51,8 @@ class FireSimulationApp {
         this.map.on('click', (e) => {
             this.selectLocation(e.latlng.lat, e.latlng.lng);
         });
+        
+        console.log('Map initialized with satellite imagery, centered on India');
     }
     
     async createGridOverlay(lat, lon) {
@@ -702,15 +715,15 @@ class FireSimulationApp {
         this.showLoading('Extracting Terrain...', 'Processing satellite imagery and generating terrain data');
         
         try {
-            console.log('Making API call to /api/map/select-area...');
-            const response = await fetch('/api/map/select-area', {
+            console.log('Making API call to /api/terrain/classify-grid (satellite imagery)...');
+            const response = await fetch('/api/terrain/classify-grid', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     lat: lat,
                     lon: lon,
-                    zoom: 15,
-                    grid_size: [this.gridSize, this.gridSize]
+                    grid_size: this.gridSize,
+                    cell_size_degrees: 0.001
                 })
             });
             

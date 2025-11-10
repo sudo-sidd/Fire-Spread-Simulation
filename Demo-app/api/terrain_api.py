@@ -245,11 +245,87 @@ def classify_grid():
         return jsonify(response_data)
         
     except Exception as e:
-        logger.error(f"Error in grid classification: {e}")
+        logger.error(f"Error in grid classification: {e}", exc_info=True)
         return jsonify({
             'success': False,
             'error': str(e),
             'message': 'Failed to classify grid terrain'
+        }), 500
+
+@terrain_bp.route('/debug-cell', methods=['POST'])
+def debug_cell_classification():
+    """Debug terrain classification for a specific cell"""
+    try:
+        data = request.get_json()
+        lat = float(data.get('lat'))
+        lon = float(data.get('lon'))
+        
+        logger.info(f"Debugging terrain classification at {lat}, {lon}")
+        
+        # Create classifier
+        classifier = MapTileClassifier()
+        
+        # Download tile for this location
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            # Get tiles for a small area
+            tiles, zoom, tile_bounds = loop.run_until_complete(
+                classifier.get_area_tiles(lat, lon, 1, 0.001)
+            )
+            
+            if not tiles:
+                return jsonify({
+                    'success': False,
+                    'message': 'No tiles could be downloaded'
+                }), 500
+            
+            # Classify this specific cell
+            terrain_type = classifier.classify_grid_cell(
+                tiles, zoom, tile_bounds, lat, lon, 0.001
+            )
+            
+            # Get sample pixels for analysis
+            tile_x, tile_y = classifier.deg2num(lat, lon, zoom)
+            if (tile_x, tile_y) in tiles:
+                tile_image = tiles[(tile_x, tile_y)]
+                
+                # Sample 5x5 pixels around center
+                center_x, center_y = tile_image.shape[1] // 2, tile_image.shape[0] // 2
+                sample_pixels = []
+                for y in range(max(0, center_y - 2), min(tile_image.shape[0], center_y + 3)):
+                    for x in range(max(0, center_x - 2), min(tile_image.shape[1], center_x + 3)):
+                        rgb = tuple(tile_image[y, x].tolist())
+                        pixel_terrain = classifier.classify_pixel_terrain(rgb)
+                        sample_pixels.append({
+                            'rgb': rgb,
+                            'classified_as': pixel_terrain
+                        })
+                
+                return jsonify({
+                    'success': True,
+                    'location': {'lat': lat, 'lon': lon},
+                    'terrain_type': terrain_type,
+                    'zoom_level': zoom,
+                    'sample_pixels': sample_pixels,
+                    'legend_colors': classifier.legend_colors
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': 'Tile not found for this location'
+                }), 404
+                
+        finally:
+            loop.close()
+            
+    except Exception as e:
+        logger.error(f"Error in debug classification: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
         }), 500
 
 def _analyze_terrain_composition(terrain_array):

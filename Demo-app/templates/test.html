@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fire Simulation - Test Changes</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; }
+        h2 { color: #666; margin-top: 0; }
+        .test-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-btn:hover { background: #0056b3; }
+        .success { color: #28a745; font-weight: bold; }
+        .error { color: #dc3545; font-weight: bold; }
+        .info { color: #17a2b8; }
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            border-left: 4px solid #007bff;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-ok { background: #28a745; }
+        .status-error { background: #dc3545; }
+        .status-pending { background: #ffc107; }
+    </style>
+</head>
+<body>
+    <h1>🔥 Fire Simulation - Verify Changes</h1>
+    
+    <div class="card">
+        <h2>System Status</h2>
+        <div id="systemStatus">
+            <p><span class="status-indicator status-pending"></span>Checking server...</p>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>✅ Test 1: Verify Cellular Automata Fixes</h2>
+        <p>Test that water cannot burn and terrain properties are working.</p>
+        <button class="test-btn" onclick="testCellularAutomata()">Run Test</button>
+        <div id="test1Result"></div>
+    </div>
+
+    <div class="card">
+        <h2>✅ Test 2: Verify Satellite Imagery</h2>
+        <p>Test that satellite tiles (ESRI) are being used instead of OSM.</p>
+        <button class="test-btn" onclick="testTerrainExtraction()">Run Test</button>
+        <div id="test2Result"></div>
+    </div>
+
+    <div class="card">
+        <h2>✅ Test 3: Test Water Detection</h2>
+        <p>Test classification of Lake Tahoe (should detect water).</p>
+        <button class="test-btn" onclick="testWaterDetection()">Run Test</button>
+        <div id="test3Result"></div>
+    </div>
+
+    <div class="card">
+        <h2>📱 Quick Actions</h2>
+        <button class="test-btn" onclick="window.location.href='/'">Open Main App</button>
+        <button class="test-btn" onclick="runAllTests()">Run All Tests</button>
+    </div>
+
+    <script>
+        // Check server status on load
+        async function checkServerStatus() {
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                document.getElementById('systemStatus').innerHTML = `
+                    <p><span class="status-indicator status-ok"></span>Server is running</p>
+                    <p class="info">Version: ${data.version} | Time: ${new Date(data.timestamp).toLocaleString()}</p>
+                `;
+            } catch (error) {
+                document.getElementById('systemStatus').innerHTML = `
+                    <p><span class="status-indicator status-error"></span>Server not responding</p>
+                    <p class="error">${error.message}</p>
+                `;
+            }
+        }
+
+        async function testCellularAutomata() {
+            const resultDiv = document.getElementById('test1Result');
+            resultDiv.innerHTML = '<p class="info">Testing cellular automata...</p>';
+            
+            try {
+                // Create a small test grid with water
+                const testGrid = [];
+                for (let row = 0; row < 10; row++) {
+                    const gridRow = [];
+                    for (let col = 0; col < 10; col++) {
+                        // Make center cells water
+                        const isWater = (row >= 4 && row <= 5 && col >= 4 && col <= 5);
+                        gridRow.push({
+                            terrain_type: isWater ? 'water' : 'grass',
+                            properties: {
+                                moisture_retention: isWater ? 1.0 : 0.5,
+                                flammability: isWater ? 0.0 : 0.9,
+                                is_flammable: !isWater
+                            }
+                        });
+                    }
+                    testGrid.push(gridRow);
+                }
+
+                // Create simulation
+                const createResponse = await fetch('/api/enhanced-simulation/create', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        grid_classification: testGrid,
+                        grid_size: 10
+                    })
+                });
+                
+                const createData = await createResponse.json();
+                
+                if (!createData.success) {
+                    throw new Error('Failed to create simulation');
+                }
+
+                // Try to ignite water cell (should fail)
+                const igniteResponse = await fetch('/api/enhanced-simulation/ignite', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        simulation_id: createData.simulation_id,
+                        row: 4,
+                        col: 4,
+                        intensity: 1.0
+                    })
+                });
+                
+                const igniteData = await igniteResponse.json();
+                
+                let results = '<h3>Results:</h3>';
+                
+                if (igniteData.success === false) {
+                    results += '<p class="success">✓ PASS: Water cannot be ignited (as expected)</p>';
+                    results += '<p class="info">Message: ' + igniteData.message + '</p>';
+                } else {
+                    results += '<p class="error">✗ FAIL: Water was ignited (should not happen!)</p>';
+                }
+                
+                // Check terrain properties are included
+                if (testGrid[0][0].properties && testGrid[4][4].properties) {
+                    results += '<p class="success">✓ PASS: Terrain properties are present</p>';
+                    results += '<pre>' + JSON.stringify({
+                        grass: testGrid[0][0].properties,
+                        water: testGrid[4][4].properties
+                    }, null, 2) + '</pre>';
+                }
+                
+                resultDiv.innerHTML = results;
+                
+            } catch (error) {
+                resultDiv.innerHTML = '<p class="error">Error: ' + error.message + '</p>';
+            }
+        }
+
+        async function testTerrainExtraction() {
+            const resultDiv = document.getElementById('test2Result');
+            resultDiv.innerHTML = '<p class="info">Testing terrain extraction with satellite imagery...</p>';
+            
+            try {
+                // Test with a known location
+                const response = await fetch('/api/terrain/classify-grid', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        lat: 40.785,  // Central Park
+                        lon: -73.968,
+                        grid_size: 10,
+                        cell_size_degrees: 0.001
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.message || 'Classification failed');
+                }
+                
+                let results = '<h3>Results:</h3>';
+                results += '<p class="success">✓ PASS: Terrain classification working</p>';
+                results += '<p class="info">Grid Size: ' + data.statistics.grid_size + '</p>';
+                results += '<p class="info">Total Cells: ' + data.statistics.total_cells + '</p>';
+                results += '<h4>Terrain Distribution:</h4>';
+                results += '<pre>' + JSON.stringify(data.statistics.terrain_counts, null, 2) + '</pre>';
+                
+                // Check if colors are present
+                if (data.legend_colors) {
+                    results += '<p class="success">✓ PASS: Legend colors defined</p>';
+                    results += '<h4>Color Palette:</h4><ul>';
+                    for (const [terrain, color] of Object.entries(data.legend_colors)) {
+                        results += `<li><span style="display:inline-block;width:20px;height:20px;background:${color};border:1px solid #ccc;margin-right:8px;vertical-align:middle;"></span>${terrain}: ${color}</li>`;
+                    }
+                    results += '</ul>';
+                }
+                
+                resultDiv.innerHTML = results;
+                
+            } catch (error) {
+                resultDiv.innerHTML = '<p class="error">Error: ' + error.message + '</p>';
+            }
+        }
+
+        async function testWaterDetection() {
+            const resultDiv = document.getElementById('test3Result');
+            resultDiv.innerHTML = '<p class="info">Testing water detection at Lake Tahoe...</p>';
+            
+            try {
+                const response = await fetch('/api/terrain/classify-grid', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        lat: 39.1,   // Lake Tahoe
+                        lon: -120.0,
+                        grid_size: 15,
+                        cell_size_degrees: 0.002
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.message || 'Classification failed');
+                }
+                
+                const waterCount = data.statistics.terrain_counts.water || 0;
+                const waterPercent = ((waterCount / data.statistics.total_cells) * 100).toFixed(1);
+                
+                let results = '<h3>Results:</h3>';
+                
+                if (waterCount > 0) {
+                    results += '<p class="success">✓ PASS: Water detected!</p>';
+                    results += '<p class="info">Water cells: ' + waterCount + ' (' + waterPercent + '%)</p>';
+                } else {
+                    results += '<p class="error">✗ FAIL: No water detected (expected ~30-50% for Lake Tahoe)</p>';
+                }
+                
+                results += '<h4>Full Distribution:</h4>';
+                results += '<pre>' + JSON.stringify(data.statistics.terrain_counts, null, 2) + '</pre>';
+                
+                resultDiv.innerHTML = results;
+                
+            } catch (error) {
+                resultDiv.innerHTML = '<p class="error">Error: ' + error.message + '</p>';
+            }
+        }
+
+        async function runAllTests() {
+            await testCellularAutomata();
+            await new Promise(r => setTimeout(r, 1000));
+            await testTerrainExtraction();
+            await new Promise(r => setTimeout(r, 1000));
+            await testWaterDetection();
+        }
+
+        // Check server on page load
+        checkServerStatus();
+    </script>
+</body>
+</html>

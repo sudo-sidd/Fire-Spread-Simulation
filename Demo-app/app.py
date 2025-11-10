@@ -40,6 +40,11 @@ def create_app():
         """Main application page"""
         return render_template('index.html')
     
+    @app.route('/test')
+    def test_page():
+        """Test page to verify changes"""
+        return render_template('test.html')
+    
     @app.route('/health')
     def health_check():
         """Health check endpoint"""

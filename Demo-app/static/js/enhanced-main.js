@@ -245,10 +245,11 @@ class EnhancedFireSimulationApp {
             return;
         }
         
-        this.showToast('Loading', 'Analyzing terrain from OpenStreetMap data...', 'info');
+        this.showToast('Loading', 'Analyzing terrain with satellite imagery...', 'info');
         
         try {
-            const response = await fetch('/api/map/select-area', {
+            // Use the NEW terrain classification API with satellite imagery
+            const response = await fetch('/api/terrain/classify-grid', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -256,8 +257,8 @@ class EnhancedFireSimulationApp {
                 body: JSON.stringify({
                     lat: this.selectedLocation.lat,
                     lon: this.selectedLocation.lng,
-                    zoom: 16,
-                    grid_size: [this.gridSize, this.gridSize]
+                    grid_size: this.gridSize,
+                    cell_size_degrees: 0.001
                 })
             });
             

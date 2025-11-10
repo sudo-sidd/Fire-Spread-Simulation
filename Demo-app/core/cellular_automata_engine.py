@@ -82,63 +82,81 @@ class CellularAutomatonEngine:
                 'spread_probability': 0.8,
                 'fuel_consumption_rate': 0.12,
                 'heat_generation': 0.9,
-                'moisture_loss_rate': 0.15
+                'moisture_loss_rate': 0.15,
+                'ignition_threshold': 0.3,  # Easy to ignite
+                'is_flammable': True
             },
             'grass': {
                 'max_burn_duration': 3,
                 'spread_probability': 0.95,
                 'fuel_consumption_rate': 0.25,
                 'heat_generation': 0.7,
-                'moisture_loss_rate': 0.3
+                'moisture_loss_rate': 0.3,
+                'ignition_threshold': 0.2,  # Very easy to ignite
+                'is_flammable': True
             },
             'shrub': {
                 'max_burn_duration': 5,
                 'spread_probability': 0.75,
                 'fuel_consumption_rate': 0.18,
                 'heat_generation': 0.8,
-                'moisture_loss_rate': 0.2
+                'moisture_loss_rate': 0.2,
+                'ignition_threshold': 0.35,  # Moderately easy to ignite
+                'is_flammable': True
             },
             'agriculture': {
                 'max_burn_duration': 4,
                 'spread_probability': 0.6,
                 'fuel_consumption_rate': 0.2,
                 'heat_generation': 0.6,
-                'moisture_loss_rate': 0.25
+                'moisture_loss_rate': 0.25,
+                'ignition_threshold': 0.4,  # Moderate ignition threshold
+                'is_flammable': True
             },
             'urban': {
                 'max_burn_duration': 12,
                 'spread_probability': 0.1,
                 'fuel_consumption_rate': 0.05,
                 'heat_generation': 0.3,
-                'moisture_loss_rate': 0.1
+                'moisture_loss_rate': 0.1,
+                'ignition_threshold': 0.9,  # Very hard to ignite
+                'is_flammable': True  # Buildings can burn, but slowly
             },
             'water': {
                 'max_burn_duration': 0,
                 'spread_probability': 0.0,
                 'fuel_consumption_rate': 0.0,
                 'heat_generation': 0.0,
-                'moisture_loss_rate': 0.0
+                'moisture_loss_rate': 0.0,
+                'ignition_threshold': 999.0,  # Impossible to ignite
+                'is_flammable': False  # Water cannot burn!
             },
             'bare_ground': {
                 'max_burn_duration': 1,
                 'spread_probability': 0.1,
                 'fuel_consumption_rate': 0.8,
                 'heat_generation': 0.2,
-                'moisture_loss_rate': 0.4
+                'moisture_loss_rate': 0.4,
+                'ignition_threshold': 0.85,  # Hard to ignite (minimal fuel)
+                'is_flammable': True
             },
             'beach': {
                 'max_burn_duration': 1,
                 'spread_probability': 0.05,
                 'fuel_consumption_rate': 0.9,
                 'heat_generation': 0.1,
-                'moisture_loss_rate': 0.5
+                'moisture_loss_rate': 0.5,
+                'ignition_threshold': 0.95,  # Very hard to ignite
+                'is_flammable': False  # Sand doesn't burn
             },
             'desert': {
                 'max_burn_duration': 2,
                 'spread_probability': 0.2,
                 'fuel_consumption_rate': 0.6,
                 'heat_generation': 0.3,
-                'moisture_loss_rate': 0.6
+                'moisture_loss_rate': 0.6,
+                'ignition_threshold': 0.8,  # Hard to ignite (low fuel)
+                'is_flammable': True
             }
         }
     
@@ -154,14 +172,33 @@ class CellularAutomatonEngine:
                 terrain_type = terrain_data['terrain_type']
                 properties = terrain_data.get('properties', {})
                 
+                # Get terrain-specific parameters
+                terrain_params = self.terrain_fire_params.get(
+                    terrain_type,
+                    self.terrain_fire_params['grass']
+                )
+                
+                # Set moisture based on terrain type
+                if terrain_type == 'water':
+                    base_moisture = 1.0  # Water is always wet
+                elif terrain_type in ['urban', 'bare_ground', 'desert']:
+                    base_moisture = 0.2  # Low moisture
+                elif terrain_type in ['agriculture', 'grass']:
+                    base_moisture = 0.5  # Medium moisture
+                else:  # forest, shrub
+                    base_moisture = 0.6  # Higher moisture
+                
+                # Override with property value if provided
+                moisture = properties.get('moisture_retention', base_moisture)
+                
                 # Initialize cell state
                 cell = CellState(
                     terrain_type=terrain_type,
                     burn_state=BurnState.UNBURNED,
                     burn_intensity=0.0,
                     burn_duration=0,
-                    moisture=properties.get('moisture_retention', 0.5),
-                    fuel_load=1.0,
+                    moisture=moisture,
+                    fuel_load=1.0 if terrain_params.get('is_flammable', True) else 0.0,
                     temperature=self.conditions.temperature
                 )
                 
@@ -177,17 +214,32 @@ class CellularAutomatonEngine:
         
         cell = self.grid[row][col]
         
+        # Get terrain parameters
+        terrain_params = self.terrain_fire_params.get(
+            cell.terrain_type, 
+            self.terrain_fire_params['grass']
+        )
+        
+        # Check if terrain is flammable
+        if not terrain_params.get('is_flammable', True):
+            logger.warning(f"Cannot ignite non-flammable terrain '{cell.terrain_type}' at ({row}, {col})")
+            return False
+        
         # Can only ignite unburned cells with fuel
         if cell.burn_state == BurnState.UNBURNED and cell.fuel_load > 0:
             # Check if ignition is possible based on moisture and terrain
-            ignition_threshold = cell.moisture * 0.8
+            ignition_threshold = terrain_params.get('ignition_threshold', 0.5)
+            moisture_resistance = cell.moisture * ignition_threshold
             
-            if intensity > ignition_threshold:
+            if intensity > moisture_resistance:
                 cell.burn_state = BurnState.BURNING
                 cell.burn_intensity = min(1.0, intensity)
                 cell.burn_duration = 1
                 logger.info(f"Ignited cell at ({row}, {col}) - {cell.terrain_type}")
                 return True
+            else:
+                logger.info(f"Failed to ignite {cell.terrain_type} at ({row}, {col}): "
+                          f"intensity {intensity:.2f} < moisture resistance {moisture_resistance:.2f}")
         
         return False
     
@@ -244,15 +296,26 @@ class CellularAutomatonEngine:
                                     target_row: int, target_col: int) -> float:
         """Calculate probability of fire spreading from source to target cell"""
         
+        # Target must be unburned and have fuel
         if target_cell.burn_state != BurnState.UNBURNED or target_cell.fuel_load <= 0:
             return 0.0
         
-        # Base spread probability from terrain
-        terrain_params = self.terrain_fire_params.get(
+        # Get target terrain parameters
+        target_params = self.terrain_fire_params.get(
             target_cell.terrain_type, 
             self.terrain_fire_params['grass']
         )
-        base_prob = terrain_params['spread_probability']
+        
+        # Check if target terrain is flammable
+        if not target_params.get('is_flammable', True):
+            return 0.0  # Non-flammable terrain cannot catch fire
+        
+        # Base spread probability from terrain
+        base_prob = target_params['spread_probability']
+        
+        # If base probability is 0 (like water), immediately return 0
+        if base_prob == 0.0:
+            return 0.0
         
         # Modify by source intensity
         intensity_factor = source_cell.burn_intensity
@@ -475,7 +538,16 @@ class CellularAutomatonEngine:
                 cell.fuel_load = 1.0
                 cell.temperature = self.conditions.temperature
                 # Reset moisture to terrain-based default
-                if hasattr(cell, 'original_moisture'):
-                    cell.moisture = cell.original_moisture
+                terrain_params = self.terrain_fire_params.get(
+                    cell.terrain_type,
+                    self.terrain_fire_params['grass']
+                )
+                # Water has high moisture, others vary
+                if cell.terrain_type == 'water':
+                    cell.moisture = 1.0
+                elif cell.terrain_type in ['urban', 'bare_ground']:
+                    cell.moisture = 0.2
+                else:
+                    cell.moisture = 0.5
         
         logger.info("Simulation reset")

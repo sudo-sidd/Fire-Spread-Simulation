@@ -45,10 +45,10 @@
     </nav>
 
     <!-- Main Content -->
-    <div class="container-fluid h-100">
-        <div class="row h-100">
+    <div class="container-fluid" style="height: calc(100vh - 56px); overflow: hidden;">
+        <div class="row" style="height: 100%;">
             <!-- Control Panel -->
-            <div class="col-md-3 bg-light p-3 control-panel">
+            <div class="col-md-3 bg-light p-3 control-panel" style="height: 100%; overflow-y: auto;">
                 <h5><i class="fas fa-cog"></i> Control Panel</h5>
                 
                 <!-- Location Selection -->
@@ -72,12 +72,12 @@
                             <div class="col-6">
                                 <label for="latInput" class="form-label">Latitude</label>
                                 <input type="number" class="form-control" id="latInput" 
-                                       step="0.0001" placeholder="39.8283">
+                                       step="0.0001" placeholder="28.6139">
                             </div>
                             <div class="col-6">
                                 <label for="lonInput" class="form-label">Longitude</label>
                                 <input type="number" class="form-control" id="lonInput" 
-                                       step="0.0001" placeholder="-98.5795">
+                                       step="0.0001" placeholder="77.2090">
                             </div>
                         </div>
                         
@@ -240,10 +240,10 @@
             </div>
 
             <!-- Map Area -->
-            <div class="col-md-9 p-0">
-                <div id="mapContainer" class="h-100 position-relative">
+            <div class="col-md-9 p-0" style="height: 100%;">
+                <div id="mapContainer" class="position-relative" style="height: 100%;">
                     <!-- World Map for Selection -->
-                    <div id="worldMap" class="h-100"></div>
+                    <div id="worldMap" style="height: 100%; width: 100%;"></div>
                     
                     <!-- Simulation Canvas Overlay -->
                     <div id="simulationOverlay" class="position-absolute top-0 start-0 w-100 h-100" style="display: none;">
@@ -309,7 +309,7 @@
                         <li><span style="color: #404040;">Dark Gray</span> - Burned areas</li>
                         <li><span style="color: #0064c8;">Blue</span> - Water bodies (fireproof)</li>
                         <li><span style="color: #808080;">Gray</span> - Urban areas (low fuel)</li>
-                    </ul>
+                    </ul>C
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -321,6 +321,7 @@
     <!-- Scripts -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Using main.js - enhanced version has syntax errors -->
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>
