@@ -1,5 +1,4 @@
-# Fire Spread Simulation - Hackathon Demo
-
+# Fire Spread Simulation - with cellular automata
 [![Python](https://img.shields.io/badge/Python-3.8+-blue)](https://python.org)
 [![Flask](https://img.shields.io/badge/Flask-2.0+-green)](https://flask.palletsprojects.com/)
 
