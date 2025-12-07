@@ -8,7 +8,6 @@ A wildfire simulation experiment developed for a hackathon, exploring different 
 
 <video width="100%" controls>
   <source src="./assets/firesim.mp4" type="video/mp4">
-  Your browser does not support the video tag.
 </video>
 
 *Full demo video showing the interactive web application in action*
@@ -34,20 +33,6 @@ This hackathon project experiments with various fire simulation techniques and i
 
 **Key Learning:** Understanding fundamental cellular automata rules for fire spread modeling
 
-### 2. 3D Visualization Experiments (`3d-forest-fire-simulation/`)
-
-**Purpose:** Explore 3D rendering approaches for fire simulation
-
-**Multiple Implementations:**
-
-- **`main_software3d.py`** - Software-based 3D rendering (most successful)
-- **`main_voxel.py`** - Matplotlib 3D voxel visualization
-- **`main_opengl.py`** - Pure OpenGL implementation (graphics driver issues)
-- **`main_3d.py`** - Ursina engine approach
-- **`main_headless.py`** - 2D matplotlib fallback
-
-**Key Challenge:** Graphics compatibility across different systems led to multiple rendering approaches
-
 ### 3. Real-World Data Integration (`Datasets/`)
 
 **Purpose:** Incorporate actual meteorological and terrain data
@@ -72,13 +57,6 @@ The culmination of all experiments - a professional web application that combine
 - Search locations by address or coordinates
 - Real-time terrain extraction from satellite imagery
 - Support for various terrain types (forest, grass, urban, water)
-
-#### Advanced Fire Simulation Engine
-
-- Cellular automata-based fire spread modeling
-- Real terrain data integration with elevation
-- Multiple fire ignition points support
-- Configurable fire behavior parameters
 
 #### Weather System Integration
 
